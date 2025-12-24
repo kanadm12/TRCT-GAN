@@ -1,0 +1,150 @@
+# TRCT-GAN Configuration File
+# Configuration for Transformer and GAN-based CT Reconstruction from Biplane X-rays
+
+# Model Architecture
+model:
+  name: "TRCT-GAN"
+  input_size: [128, 128]  # Biplane X-ray image size (H, W)
+  output_size: [128, 128, 128]  # 3D CT volume size (D, H, W)
+  
+  generator:
+    # Encoder settings
+    encoder_channels: [64, 128, 256, 512]
+    use_dense_connections: true
+    
+    # 2D AIA Module settings
+    aia_2d:
+      enabled: true
+      attention_channels: 512
+      reduction_ratio: 16
+      
+    # Transformer settings
+    transformer:
+      enabled: true
+      embed_dim: 512
+      num_heads: 8
+      num_layers: 6
+      dropout: 0.1
+      mlp_ratio: 4
+      
+    # Decoder settings
+    decoder_channels: [512, 256, 128, 64]
+    
+    # 3D AIA Module settings
+    aia_3d:
+      enabled: true
+      attention_channels: 64
+      use_trilinear: true  # True for quality, False for speed (nearest neighbor)
+      reduction_ratio: 16
+      
+    # Jump connections
+    skip_connections: true
+    cross_view_fusion: true
+    
+  discriminator:
+    type: "PatchGAN"
+    channels: [64, 128, 256, 512]
+    num_layers: 4
+    use_spectral_norm: false
+    
+# Loss Functions
+loss:
+  adversarial:
+    type: "LSGAN"  # Least Squares GAN
+    lambda_adv: 1.0
+    
+  reconstruction:
+    type: "L1"  # or "L2"/"MSE"
+    lambda_recon: 10.0
+    
+  projection:
+    type: "L1"
+    lambda_proj: 5.0
+    num_angles: 3  # frontal, sagittal, axial
+    
+  perceptual:
+    type: "VGG16"
+    layers: ["relu1_2", "relu2_2", "relu3_3", "relu4_3"]
+    lambda_perceptual: 1.0
+    pretrained: true
+
+# Training Settings
+training:
+  batch_size: 4
+  num_epochs: 100
+  num_workers: 4
+  pin_memory: true
+  
+  # Optimizer settings
+  optimizer:
+    type: "Adam"
+    generator:
+      lr: 0.0004  # 4e-4
+      betas: [0.5, 0.999]
+      weight_decay: 0.0
+    discriminator:
+      lr: 0.0004
+      betas: [0.5, 0.999]
+      weight_decay: 0.0
+      
+  # Learning rate scheduler
+  scheduler:
+    type: "linear"  # Linear decay to zero
+    decay_start_epoch: 50  # Start decaying from epoch 50
+    
+  # Training strategy
+  generator_steps: 1
+  discriminator_steps: 1
+  
+  # Normalization
+  normalization: "instance"  # instance normalization instead of batch norm
+  
+  # Gradient clipping
+  gradient_clip: 1.0
+  
+  # Checkpointing
+  save_freq: 5  # Save every 5 epochs
+  val_freq: 1   # Validate every epoch
+  
+# Dataset Settings
+dataset:
+  train_data_path: "data/train"
+  val_data_path: "data/val"
+  test_data_path: "data/test"
+  
+  # Data augmentation
+  augmentation:
+    enabled: true
+    random_flip: true
+    random_rotation: 10  # degrees
+    random_brightness: 0.1
+    random_contrast: 0.1
+    
+  # Normalization (image intensities)
+  normalize:
+    xray_min: -1.0
+    xray_max: 1.0
+    ct_min: -1.0
+    ct_max: 1.0
+
+# Hardware Settings
+hardware:
+  device: "cuda"  # or "cpu"
+  gpu_ids: [0]  # NVIDIA TESLA V100S or similar
+  mixed_precision: true  # Use AMP for faster training
+  
+# Logging and Output
+logging:
+  log_dir: "logs"
+  checkpoint_dir: "checkpoints"
+  output_dir: "outputs"
+  tensorboard: true
+  wandb: false
+  log_freq: 10  # Log every 10 iterations
+  
+# Inference Settings
+inference:
+  checkpoint_path: "checkpoints/best_model.pth"
+  output_format: "nifti"  # or "numpy", "dicom"
+  save_projections: true
+  save_visualizations: true
