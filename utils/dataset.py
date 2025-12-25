@@ -67,6 +67,9 @@ class XRayCTDataset(Dataset):
         img = img.resize((128, 128), Image.BILINEAR)
         img = np.array(img, dtype=np.float32)
         
+        # Flip vertically (DRRs are upside down)
+        img = np.flipud(img)
+        
         # Normalize to [0, 1]
         img = img / 255.0
         
