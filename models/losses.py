@@ -224,11 +224,28 @@ class VGGPerceptualLoss(nn.Module):
     
     def project_volume(self, volume, axis):
         """
-        Project 3D volume to 2D
+        Project 3D volume to 2D by summing along one axis
+        
+        Args:
+            volume: (B, 1, D, H, W)
+            axis: dimension to project along (2=D, 3=H, 4=W)
+        Returns:
+            projection: (B, 1, H, W) normalized projection
         """
-        projection = torch.sum(volume, dim=axis, keepdim=False)
-        # Normalize to [0, 1] range
-        projection = (projection - projection.min()) / (projection.max() - projection.min() + 1e-8)
+        # Sum along the specified axis, keep channel dimension
+        projection = torch.sum(volume, dim=axis, keepdim=False)  # e.g., (B, 1, H, W)
+        
+        # Ensure we have the right shape (B, 1, H, W)
+        if projection.dim() == 3:  # If channel dimension was removed
+            projection = projection.unsqueeze(1)
+        
+        # Normalize to [0, 1] range per sample
+        for i in range(projection.shape[0]):
+            p = projection[i]
+            p_min = p.min()
+            p_max = p.max()
+            projection[i] = (p - p_min) / (p_max - p_min + 1e-8)
+        
         return projection
     
     def forward(self, pred_volume, target_volume):
@@ -243,12 +260,12 @@ class VGGPerceptualLoss(nn.Module):
         
         # Compute perceptual loss on three projections
         for axis in [2, 3, 4]:  # frontal, top, lateral
-            pred_proj = self.project_volume(pred_volume, axis)
-            target_proj = self.project_volume(target_volume, axis)
+            pred_proj = self.project_volume(pred_volume, axis)  # (B, 1, H, W)
+            target_proj = self.project_volume(target_volume, axis)  # (B, 1, H, W)
             
-            # Prepare for VGG
-            pred_prep = self.prepare_image(pred_proj.unsqueeze(1))
-            target_prep = self.prepare_image(target_proj.unsqueeze(1))
+            # Prepare for VGG (already has channel dim, no need for unsqueeze)
+            pred_prep = self.prepare_image(pred_proj)
+            target_prep = self.prepare_image(target_proj)
             
             # Extract features
             pred_features = self.extract_features(pred_prep)
