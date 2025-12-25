@@ -108,11 +108,11 @@ training:
   
 # Dataset Settings
 dataset:
-  # For RunPod, use: /workspace/drr_patient_data
-  # For local, use: data/train, data/val, etc.
-  train_data_path: "/workspace/drr_patient_data/train"
-  val_data_path: "/workspace/drr_patient_data/val"
-  test_data_path: "/workspace/drr_patient_data/test"
+  # For RunPod with all patients in one folder
+  # Use same path for train/val, or manually split into subdirectories
+  train_data_path: "/workspace/drr_patient_data"
+  val_data_path: "/workspace/drr_patient_data"
+  test_data_path: "/workspace/drr_patient_data"
   
   # Data augmentation
   augmentation:
