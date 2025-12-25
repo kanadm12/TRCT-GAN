@@ -89,18 +89,25 @@ def visualize_comparison(xray_frontal, xray_lateral, ct_pred, ct_real=None, save
     Visualize input X-rays and output CT (with optional ground truth)
     
     Args:
-        xray_frontal: (1, H, W) frontal X-ray
-        xray_lateral: (1, H, W) lateral X-ray
-        ct_pred: (1, D, H, W) predicted CT volume
-        ct_real: (1, D, H, W) ground truth CT volume (optional)
+        xray_frontal: (1, H, W) or (H, W) frontal X-ray
+        xray_lateral: (1, H, W) or (H, W) lateral X-ray
+        ct_pred: (1, D, H, W) or (D, H, W) predicted CT volume
+        ct_real: (1, D, H, W) or (D, H, W) ground truth CT volume (optional)
         save_path: Path to save the visualization
     """
     if isinstance(xray_frontal, torch.Tensor):
-        xray_frontal = xray_frontal.cpu().numpy()[0]
-        xray_lateral = xray_lateral.cpu().numpy()[0]
-        ct_pred = ct_pred.cpu().numpy()[0]
+        xray_frontal = xray_frontal.cpu().numpy()
+        xray_lateral = xray_lateral.cpu().numpy()
+        ct_pred = ct_pred.cpu().numpy()
         if ct_real is not None:
-            ct_real = ct_real.cpu().numpy()[0]
+            ct_real = ct_real.cpu().numpy()
+    
+    # Squeeze to remove extra dimensions
+    xray_frontal = np.squeeze(xray_frontal)
+    xray_lateral = np.squeeze(xray_lateral)
+    ct_pred = np.squeeze(ct_pred)
+    if ct_real is not None:
+        ct_real = np.squeeze(ct_real)
     
     # Select middle slices
     D = ct_pred.shape[0]
