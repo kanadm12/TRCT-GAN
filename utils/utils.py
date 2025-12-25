@@ -50,15 +50,15 @@ def visualize_slices(ct_volume, num_slices=5, save_path=None):
     Visualize slices from a 3D CT volume
     
     Args:
-        ct_volume: (1, D, H, W) or (D, H, W) torch tensor or numpy array
+        ct_volume: (B, C, D, H, W) or (1, D, H, W) or (D, H, W) torch tensor or numpy array
         num_slices: Number of slices to visualize
         save_path: Path to save the visualization
     """
     if isinstance(ct_volume, torch.Tensor):
         ct_volume = ct_volume.cpu().numpy()
     
-    # Remove channel dimension if present
-    if ct_volume.ndim == 4:
+    # Remove batch and channel dimensions if present
+    while ct_volume.ndim > 3:
         ct_volume = ct_volume[0]
     
     D, H, W = ct_volume.shape
