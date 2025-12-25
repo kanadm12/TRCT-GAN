@@ -51,27 +51,27 @@ model:
 loss:
   adversarial:
     type: "LSGAN"  # Least Squares GAN
-    lambda_adv: 1.0
+    lambda_adv: 0.5  # Reduced to prioritize reconstruction
     
   reconstruction:
     type: "L1"  # or "L2"/"MSE"
-    lambda_recon: 10.0
+    lambda_recon: 20.0  # Increased from 10.0 for better anatomical learning
     
   projection:
     type: "L1"
-    lambda_proj: 5.0
+    lambda_proj: 10.0  # Increased from 5.0
     num_angles: 3  # frontal, sagittal, axial
     
   perceptual:
     type: "VGG16"
     layers: ["relu1_2", "relu2_2", "relu3_3", "relu4_3"]
-    lambda_perceptual: 1.0
+    lambda_perceptual: 2.0  # Increased from 1.0
     pretrained: true
 
 # Training Settings
 training:
   batch_size: 1  # Reduced from 4 to avoid OOM
-  num_epochs: 30
+  num_epochs: 100  # Increased from 30 for better convergence
   num_workers: 2  # Reduced to save memory
   pin_memory: false  # Disable to save memory
   
@@ -90,7 +90,7 @@ training:
   # Learning rate scheduler
   scheduler:
     type: "linear"  # Linear decay to zero
-    decay_start_epoch: 15  # Start decaying from epoch 15 (halfway through 30 epochs)
+    decay_start_epoch: 50  # Start decaying from epoch 50
     
   # Training strategy
   generator_steps: 1
