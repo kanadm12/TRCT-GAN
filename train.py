@@ -326,33 +326,52 @@ class Trainer:
     
     @torch.no_grad()
     def validate(self):
-        """Validation"""
+        """Validation with PSNR and SSIM metrics"""
+        from utils.utils import compute_metrics
+        
         self.generator.eval()
         self.discriminator.eval()
         
         losses_G = AverageMeter()
         losses_D = AverageMeter()
+        psnr_meter = AverageMeter()
+        ssim_meter = AverageMeter()
         
-        for batch in tqdm(self.val_loader, desc="Validation"):
-            xray_frontal = batch['xray_frontal'].to(self.device)
-            xray_lateral = batch['xray_lateral'].to(self.device)
-            ct_real = batch['ct_volume'].to(self.device)
-            
-            batch_size = xray_frontal.size(0)
-            
-            # Generate fake CT
-            ct_fake = self.generator(xray_frontal, xray_lateral)
-            
-            # Discriminator predictions
-            pred_real = self.discriminator(ct_real)
-            pred_fake = self.discriminator(ct_fake)
-            
-            # Losses
-            loss_D = self.criterion.discriminator_loss(pred_real, pred_fake)
-            loss_G, loss_dict = self.criterion.generator_loss(ct_fake, ct_real, pred_fake)
-            
-            losses_G.update(loss_G.item(), batch_size)
-            losses_D.update(loss_D.item(), batch_size)
+        with torch.no_grad():
+            for batch in tqdm(self.val_loader, desc="Validation"):
+                xray_frontal = batch['xray_frontal'].to(self.device)
+                xray_lateral = batch['xray_lateral'].to(self.device)
+                ct_real = batch['ct_volume'].to(self.device)
+                
+                batch_size = xray_frontal.size(0)
+                
+                # Generate fake CT
+                ct_fake = self.generator(xray_frontal, xray_lateral)
+                
+                # Discriminator predictions
+                pred_real = self.discriminator(ct_real)
+                pred_fake = self.discriminator(ct_fake)
+                
+                # Losses
+                loss_D = self.criterion.discriminator_loss(pred_real, pred_fake)
+                loss_G, loss_dict = self.criterion.generator_loss(ct_fake, ct_real, pred_fake)
+                
+                losses_G.update(loss_G.item(), batch_size)
+                losses_D.update(loss_D.item(), batch_size)
+                
+                # Compute PSNR and SSIM for each sample in batch
+                for i in range(batch_size):
+                    metrics = compute_metrics(ct_fake[i], ct_real[i])
+                    psnr_meter.update(metrics['PSNR'], 1)
+                    ssim_meter.update(metrics['SSIM'], 1)
+        
+        # Log metrics to tensorboard
+        if self.writer:
+            self.writer.add_scalar('Val/PSNR', psnr_meter.avg, self.current_epoch)
+            self.writer.add_scalar('Val/SSIM', ssim_meter.avg, self.current_epoch)
+        
+        print(f"\n  Val Loss G: {losses_G.avg:.4f}, Val Loss D: {losses_D.avg:.4f}")
+        print(f"  PSNR: {psnr_meter.avg:.2f} dB, SSIM: {ssim_meter.avg:.4f}")
         
         return losses_G.avg, losses_D.avg
     

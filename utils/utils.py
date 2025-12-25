@@ -162,18 +162,22 @@ def visualize_comparison(xray_frontal, xray_lateral, ct_pred, ct_real=None, save
 
 def compute_metrics(pred, target):
     """
-    Compute evaluation metrics
+    Compute evaluation metrics including PSNR and SSIM
     
     Args:
-        pred: Predicted CT volume
-        target: Ground truth CT volume
+        pred: Predicted CT volume (torch.Tensor or numpy.ndarray)
+        target: Ground truth CT volume (torch.Tensor or numpy.ndarray)
     
     Returns:
-        metrics: Dictionary of metrics
+        metrics: Dictionary of metrics (MAE, MSE, RMSE, PSNR, SSIM)
     """
     if isinstance(pred, torch.Tensor):
         pred = pred.cpu().numpy()
         target = target.cpu().numpy()
+    
+    # Squeeze dimensions if needed
+    pred = np.squeeze(pred)
+    target = np.squeeze(target)
     
     # Mean Absolute Error
     mae = np.mean(np.abs(pred - target))
@@ -185,17 +189,36 @@ def compute_metrics(pred, target):
     rmse = np.sqrt(mse)
     
     # Peak Signal-to-Noise Ratio
-    max_val = np.max(target) - np.min(target)
-    psnr = 20 * np.log10(max_val / rmse) if rmse > 0 else float('inf')
+    data_range = target.max() - target.min()
+    if rmse > 0:
+        psnr = 20 * np.log10(data_range / rmse)
+    else:
+        psnr = float('inf')
     
-    # Structural Similarity Index (simplified)
-    # For proper SSIM, use skimage.metrics.structural_similarity
+    # Structural Similarity Index
+    try:
+        from skimage.metrics import structural_similarity as ssim
+        # Compute SSIM on middle slice for efficiency, or average across slices
+        if pred.ndim == 3:  # 3D volume
+            ssim_values = []
+            # Sample 10 evenly spaced slices
+            num_slices = pred.shape[0]
+            slice_indices = np.linspace(0, num_slices-1, min(10, num_slices), dtype=int)
+            for idx in slice_indices:
+                ssim_val = ssim(target[idx], pred[idx], data_range=data_range)
+                ssim_values.append(ssim_val)
+            ssim_score = np.mean(ssim_values)
+        else:  # 2D image
+            ssim_score = ssim(target, pred, data_range=data_range)
+    except ImportError:
+        ssim_score = 0.0  # SSIM not available
     
     metrics = {
-        'MAE': mae,
-        'MSE': mse,
-        'RMSE': rmse,
-        'PSNR': psnr
+        'MAE': float(mae),
+        'MSE': float(mse),
+        'RMSE': float(rmse),
+        'PSNR': float(psnr),
+        'SSIM': float(ssim_score)
     }
     
     return metrics
