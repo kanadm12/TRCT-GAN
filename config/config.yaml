@@ -71,7 +71,7 @@ loss:
 # Training Settings
 training:
   batch_size: 4
-  num_epochs: 100
+  num_epochs: 30
   num_workers: 4
   pin_memory: true
   
@@ -90,7 +90,7 @@ training:
   # Learning rate scheduler
   scheduler:
     type: "linear"  # Linear decay to zero
-    decay_start_epoch: 50  # Start decaying from epoch 50
+    decay_start_epoch: 15  # Start decaying from epoch 15 (halfway through 30 epochs)
     
   # Training strategy
   generator_steps: 1
