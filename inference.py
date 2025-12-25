@@ -116,10 +116,35 @@ class TRCTInference:
         xray_frontal = self.load_xray(xray_frontal_path)
         xray_lateral = self.load_xray(xray_lateral_path)
         
-        # Generate CT
+        # Generate CT (output is in normalized range [-1, 1])
         ct_volume = self.generator(xray_frontal, xray_lateral)
         
         return ct_volume, xray_frontal, xray_lateral
+    
+    def denormalize_ct(self, ct_volume):
+        """
+        Denormalize CT volume from [-1, 1] to HU units
+        
+        Args:
+            ct_volume: Normalized CT volume (tensor or numpy)
+        Returns:
+            denorm_volume: CT volume in HU units
+        """
+        if isinstance(ct_volume, torch.Tensor):
+            ct_volume = ct_volume.cpu().numpy()
+        
+        # Get normalization parameters
+        normalize = self.config['dataset']['normalize']
+        ct_min = normalize.get('ct_min', -1.0)
+        ct_max = normalize.get('ct_max', 1.0)
+        
+        # Reverse normalization: from [ct_min, ct_max] to [0, 1]
+        volume = (ct_volume - ct_min) / (ct_max - ct_min)
+        
+        # Reverse to HU units: from [0, 1] to [-1000, 3000]
+        volume = volume * 4000 - 1000
+        
+        return volume
     
     def run_inference(self, frontal_path, lateral_path, output_dir, 
                      ground_truth_path=None, visualize=True):
@@ -165,23 +190,29 @@ class TRCTInference:
         # Save CT volume
         output_format = self.config['inference'].get('output_format', 'nifti')
         
+        # Denormalize CT for saving (convert from [-1,1] to HU units)
+        ct_pred_denorm = self.denormalize_ct(ct_pred)
+        
         if output_format == 'nifti':
             ct_path = os.path.join(output_dir, 'predicted_ct.nii.gz')
-            save_volume_as_nifti(ct_pred, ct_path)
+            save_volume_as_nifti(ct_pred_denorm, ct_path)
         elif output_format == 'numpy':
             ct_path = os.path.join(output_dir, 'predicted_ct.npy')
-            np.save(ct_path, ct_pred.cpu().numpy())
+            np.save(ct_path, ct_pred_denorm)
             print(f"Volume saved to {ct_path}")
         
-        # Visualizations
+        # Visualizations (use denormalized volumes for better contrast)
         if visualize or self.config['inference'].get('save_visualizations', True):
+            # Denormalize for visualization
+            ct_real_denorm = self.denormalize_ct(ct_real) if ct_real is not None else None
+            
             # Slice visualization
             slice_path = os.path.join(output_dir, 'ct_slices.png')
-            visualize_slices(ct_pred, num_slices=5, save_path=slice_path)
+            visualize_slices(ct_pred_denorm, num_slices=5, save_path=slice_path)
             
             # Comparison visualization
             comp_path = os.path.join(output_dir, 'comparison.png')
-            visualize_comparison(xray_f, xray_l, ct_pred, ct_real, save_path=comp_path)
+            visualize_comparison(xray_f, xray_l, ct_pred_denorm, ct_real_denorm, save_path=comp_path)
             
             print(f"\n  Visualizations saved to {output_dir}")
         
