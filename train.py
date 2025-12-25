@@ -79,6 +79,8 @@ class Trainer:
         # Initialize logging
         if self.config['logging']['tensorboard']:
             self.writer = SummaryWriter(log_dir=self.config['logging']['log_dir'])
+            print(f"TensorBoard logging enabled: {self.config['logging']['log_dir']}")
+            print("  Metrics logged: Train/Val losses, PSNR, SSIM, LR, loss components, images")
         else:
             self.writer = None
         
@@ -359,16 +361,58 @@ class Trainer:
                 losses_G.update(loss_G.item(), batch_size)
                 losses_D.update(loss_D.item(), batch_size)
                 
+                # Store first batch loss dict for logging
+                if 'val_loss_dict' not in locals():
+                    val_loss_dict = {k: [] for k in loss_dict.keys()}
+                for k, v in loss_dict.items():
+                    val_loss_dict[k].append(v)
+                
                 # Compute PSNR and SSIM for each sample in batch
                 for i in range(batch_size):
                     metrics = compute_metrics(ct_fake[i], ct_real[i])
                     psnr_meter.update(metrics['PSNR'], 1)
                     ssim_meter.update(metrics['SSIM'], 1)
+                
+                # Store first batch for visualization
+                if 'first_batch' not in locals():
+                    first_batch = {
+                        'xray_frontal': xray_frontal[0:1].cpu(),
+                        'xray_lateral': xray_lateral[0:1].cpu(),
+                        'ct_fake': ct_fake[0:1].cpu(),
+                        'ct_real': ct_real[0:1].cpu()
+                    }
         
         # Log metrics to tensorboard
         if self.writer:
+            self.writer.add_scalar('Val/Loss_G', losses_G.avg, self.current_epoch)
+            self.writer.add_scalar('Val/Loss_D', losses_D.avg, self.current_epoch)
             self.writer.add_scalar('Val/PSNR', psnr_meter.avg, self.current_epoch)
             self.writer.add_scalar('Val/SSIM', ssim_meter.avg, self.current_epoch)
+            
+            # Log validation loss components
+            if 'val_loss_dict' in locals():
+                for k, v_list in val_loss_dict.items():
+                    avg_val = sum(v_list) / len(v_list) if v_list else 0
+                    self.writer.add_scalar(f'Val/Loss_G_{k}', avg_val, self.current_epoch)
+            
+            # Log images every 5 epochs
+            if self.current_epoch % 5 == 0 and 'first_batch' in locals():
+                # Log input X-rays
+                self.writer.add_image('Val/Input_Frontal', 
+                                     first_batch['xray_frontal'][0, 0], 
+                                     self.current_epoch, dataformats='HW')
+                self.writer.add_image('Val/Input_Lateral', 
+                                     first_batch['xray_lateral'][0, 0], 
+                                     self.current_epoch, dataformats='HW')
+                
+                # Log middle slices of CT volumes
+                mid_slice = first_batch['ct_real'].shape[2] // 2
+                self.writer.add_image('Val/CT_Real_Axial', 
+                                     first_batch['ct_real'][0, 0, mid_slice], 
+                                     self.current_epoch, dataformats='HW')
+                self.writer.add_image('Val/CT_Pred_Axial', 
+                                     first_batch['ct_fake'][0, 0, mid_slice], 
+                                     self.current_epoch, dataformats='HW')
         
         print(f"\n  Val Loss G: {losses_G.avg:.4f}, Val Loss D: {losses_D.avg:.4f}")
         print(f"  PSNR: {psnr_meter.avg:.2f} dB, SSIM: {ssim_meter.avg:.4f}")
@@ -391,6 +435,15 @@ class Trainer:
             # Train
             train_loss_G, train_loss_D = self.train_epoch()
             
+            # Log epoch-level training metrics
+            if self.writer:
+                self.writer.add_scalar('Train_Epoch/Loss_G', train_loss_G, epoch)
+                self.writer.add_scalar('Train_Epoch/Loss_D', train_loss_D, epoch)
+                self.writer.add_scalar('LR/Generator', 
+                                     self.optimizer_G.param_groups[0]['lr'], epoch)
+                self.writer.add_scalar('LR/Discriminator', 
+                                     self.optimizer_D.param_groups[0]['lr'], epoch)
+            
             # Update learning rates
             self.scheduler_G.step(epoch)
             self.scheduler_D.step(epoch)
@@ -402,15 +455,6 @@ class Trainer:
                 print(f"\nEpoch {epoch}:")
                 print(f"  Train - G: {train_loss_G:.4f}, D: {train_loss_D:.4f}")
                 print(f"  Val   - G: {val_loss_G:.4f}, D: {val_loss_D:.4f}")
-                
-                # TensorBoard logging
-                if self.writer:
-                    self.writer.add_scalar('Val/Loss_G', val_loss_G, epoch)
-                    self.writer.add_scalar('Val/Loss_D', val_loss_D, epoch)
-                    self.writer.add_scalar('LR/Generator', 
-                                         self.optimizer_G.param_groups[0]['lr'], epoch)
-                    self.writer.add_scalar('LR/Discriminator', 
-                                         self.optimizer_D.param_groups[0]['lr'], epoch)
                 
                 # Save best model
                 if val_loss_G < best_val_loss:
