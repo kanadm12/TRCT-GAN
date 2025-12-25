@@ -18,20 +18,17 @@ class XRayCTDataset(Dataset):
     """
     Dataset for X-ray to CT reconstruction
     
-    Expected directory structure:
+    Expected directory structure (patient-based):
     data_path/
-        xray_frontal/
-            sample_001.png
-            sample_002.png
-            ...
-        xray_lateral/
-            sample_001.png
-            sample_002.png
-            ...
-        ct_volumes/
-            sample_001.nii.gz
-            sample_002.nii.gz
-            ...
+        patient_001/
+            patient_001.nii.gz
+            patient_001_pa_drr.png
+            patient_001_lat_drr.png
+        patient_002/
+            patient_002.nii.gz
+            patient_002_pa_drr.png
+            patient_002_lat_drr.png
+        ...
     """
     
     def __init__(self, data_path, augmentation=None, normalize=None):
@@ -39,18 +36,21 @@ class XRayCTDataset(Dataset):
         self.augmentation = augmentation
         self.normalize = normalize
         
-        # Get list of samples
-        self.frontal_dir = os.path.join(data_path, 'xray_frontal')
-        self.lateral_dir = os.path.join(data_path, 'xray_lateral')
-        self.ct_dir = os.path.join(data_path, 'ct_volumes')
-        
-        # List all samples
+        # List all samples (each patient directory)
         self.samples = []
-        if os.path.exists(self.frontal_dir):
-            for filename in sorted(os.listdir(self.frontal_dir)):
-                if filename.endswith(('.png', '.jpg', '.jpeg')):
-                    sample_id = os.path.splitext(filename)[0]
-                    self.samples.append(sample_id)
+        if os.path.exists(data_path):
+            for patient_dir in sorted(os.listdir(data_path)):
+                patient_path = os.path.join(data_path, patient_dir)
+                if os.path.isdir(patient_path):
+                    # Check if all required files exist
+                    nii_file = os.path.join(patient_path, f"{patient_dir}.nii.gz")
+                    pa_file = os.path.join(patient_path, f"{patient_dir}_pa_drr.png")
+                    lat_file = os.path.join(patient_path, f"{patient_dir}_lat_drr.png")
+                    
+                    if os.path.exists(nii_file) and os.path.exists(pa_file) and os.path.exists(lat_file):
+                        self.samples.append(patient_dir)
+                    else:
+                        print(f"Warning: Skipping {patient_dir} - missing files")
         
         print(f"Found {len(self.samples)} samples in {data_path}")
     
@@ -157,18 +157,17 @@ class XRayCTDataset(Dataset):
     
     def __getitem__(self, idx):
         sample_id = self.samples[idx]
+        patient_path = os.path.join(self.data_path, sample_id)
         
         # Load X-rays
-        frontal_path = os.path.join(self.frontal_dir, f"{sample_id}.png")
-        lateral_path = os.path.join(self.lateral_dir, f"{sample_id}.png")
+        frontal_path = os.path.join(patient_path, f"{sample_id}_pa_drr.png")
+        lateral_path = os.path.join(patient_path, f"{sample_id}_lat_drr.png")
         
         xray_frontal = self.load_xray(frontal_path)
         xray_lateral = self.load_xray(lateral_path)
         
         # Load CT
-        ct_path = os.path.join(self.ct_dir, f"{sample_id}.nii.gz")
-        if not os.path.exists(ct_path):
-            ct_path = os.path.join(self.ct_dir, f"{sample_id}.nii")
+        ct_path = os.path.join(patient_path, f"{sample_id}.nii.gz")
         
         ct_volume = self.load_ct(ct_path)
         

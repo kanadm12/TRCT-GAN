@@ -58,28 +58,30 @@ pip install -r requirements.txt
 
 ### 1. Data Preparation
 
-Organize your data in the following structure:
+Organize your data in the following structure (patient-based):
 
 ```
 data/
 ├── train/
-│   ├── xray_frontal/
-│   │   ├── sample_001.png
-│   │   ├── sample_002.png
-│   │   └── ...
-│   ├── xray_lateral/
-│   │   ├── sample_001.png
-│   │   ├── sample_002.png
-│   │   └── ...
-│   └── ct_volumes/
-│       ├── sample_001.nii.gz
-│       ├── sample_002.nii.gz
-│       └── ...
+│   ├── patient_001/
+│   │   ├── patient_001.nii.gz
+│   │   ├── patient_001_pa_drr.png
+│   │   └── patient_001_lat_drr.png
+│   ├── patient_002/
+│   │   ├── patient_002.nii.gz
+│   │   ├── patient_002_pa_drr.png
+│   │   └── patient_002_lat_drr.png
+│   └── ...
 ├── val/
 │   └── (same structure as train)
 └── test/
     └── (same structure as train)
 ```
+
+**File Naming Convention:**
+- CT volume: `{patient_id}.nii.gz`
+- PA (frontal) X-ray: `{patient_id}_pa_drr.png`
+- Lateral X-ray: `{patient_id}_lat_drr.png`
 
 **Image Requirements:**
 - X-rays: 128×128 pixels (grayscale)
