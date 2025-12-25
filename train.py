@@ -13,7 +13,7 @@ import yaml
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from torch.cuda.amp import autocast, GradScaler
+from torch.cuda.amp import GradScaler
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import numpy as np
@@ -211,7 +211,7 @@ class Trainer:
             self.optimizer_D.zero_grad()
             
             if self.use_amp:
-                with autocast():
+                with torch.amp.autocast('cuda'):
                     # Generate fake CT
                     ct_fake = self.generator(xray_frontal, xray_lateral)
                     
@@ -259,7 +259,7 @@ class Trainer:
             self.optimizer_G.zero_grad()
             
             if self.use_amp:
-                with autocast():
+                with torch.amp.autocast('cuda'):
                     # Generate fake CT
                     ct_fake = self.generator(xray_frontal, xray_lateral)
                     

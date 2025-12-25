@@ -239,12 +239,16 @@ class VGGPerceptualLoss(nn.Module):
         if projection.dim() == 3:  # If channel dimension was removed
             projection = projection.unsqueeze(1)
         
-        # Normalize to [0, 1] range per sample
+        # Normalize to [0, 1] range per sample (avoid inplace operations)
+        projection_list = []
         for i in range(projection.shape[0]):
-            p = projection[i]
+            p = projection[i:i+1]  # Keep batch dimension
             p_min = p.min()
             p_max = p.max()
-            projection[i] = (p - p_min) / (p_max - p_min + 1e-8)
+            p_norm = (p - p_min) / (p_max - p_min + 1e-8)
+            projection_list.append(p_norm)
+        
+        projection = torch.cat(projection_list, dim=0)
         
         return projection
     
